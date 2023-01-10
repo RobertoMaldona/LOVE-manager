@@ -6,6 +6,9 @@ import yaml
 import jsonschema
 import collections
 import ldap
+import string
+import random
+import math
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.db.models.query_utils import Q
@@ -804,6 +807,74 @@ def tcs_aux_command(request, *args, **kwargs):
     response = requests.post(url, json=request.data)
     return Response(response.json(), status=response.status_code)
 
+
+def is_inside_area(origin, test_point, radius):
+    earth_radius = 6371 # in km
+    angle_1 = (origin[0]) * math.pi/180 # in radians
+    angle_2 = (test_point[0]) * math.pi/180
+    delta_angle1 = (test_point[0] - origin[0]) * math.pi/180
+    delta_angle2 = (test_point[1] - origin[1]) * math.pi/180
+    
+    a = math.sin(delta_angle1/2)**2 + \
+        math.cos(angle_1) * math.cos(angle_2) * math.sin(delta_angle2/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+    d = earth_radius * c # in km 
+
+    if d <= radius: 
+        return True 
+    else: 
+        return False
+    
+
+
+def plane_generator():
+    return { "id": ''.join(random.choices(string.ascii_lowercase + string.digits, k=4)), # k = id_length. 
+             "loc" : (random.uniform(-30.240839 - 1.8, -30.240839 + 1.8), random.uniform(-70.736919 - 1.4, -70.736919 + 1.4)),  # South Gemini Observatory is in  lat long -30.240839, -70.736919
+             "vel" : random.randint(200, 280), # mean in km/h
+    }
+
+
+@api_view(["GET"])
+@permission_classes((IsAuthenticated,))
+def data_flight_tracker(request, *args, **kwargs):
+    """Allows to get FlightTracker data from dummy API
+
+    Params
+    ------
+    request: Request
+        The Request object
+    args: list
+        List of addittional arguments. Currently unused
+    kwargs: dict
+        Dictionary with request arguments. Request should contain the following:
+            command_name (required): The name of the command to be run.
+            It should be a field of the lsst.ts.observatory.control.auxtel.ATCS class
+            params (required): Parameters to be passed to the command method, e.g.
+                {
+                    ra: 80,
+                    dec: 30,
+                }
+
+    Returns
+    -------
+    Response
+        The response and status code of the request to the LOVE-Commander
+    """
+
+    random.seed(234)
+    list_planes = []
+    radius = float(request.query_params.get("radius"))
+    location = request.query_params.get("location")
+    location = (((location.replace("(" , "")).replace(")" , "")).replace("," , " ")).split()
+    location = (float(location[0]), float(location[1]))
+
+    while len(list_planes) < 15 :
+        plane = plane_generator()
+        if is_inside_area(location, plane["loc"], radius) == True:
+            list_planes.append(plane)
+    print(list_planes, flush = True)
+    return Response(list_planes, status = 200)
 
 @api_view(["GET"])
 @permission_classes((IsAuthenticated,))

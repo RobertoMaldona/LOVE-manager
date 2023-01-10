@@ -33,6 +33,7 @@ urlpatterns = [
         api.views.validate_config_schema,
         name="validate-config-schema",
     ),
+    path("data-FlightTracker/", api.views.data_flight_tracker, name="data-flight-tracker",), # AQUÍ
     path("logout/", api.views.logout, name="logout"),
     path("swap-user/", api.views.CustomSwapAuthToken.as_view(), name="swap-user"),
     path(
